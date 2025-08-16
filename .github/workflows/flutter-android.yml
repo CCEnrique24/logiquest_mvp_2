@@ -35,14 +35,29 @@ jobs:
             flutter create . --platforms=android
           fi
 
-      - name: Patch minSdkVersion to 21
+      - name: Show Android tree (debug)
+        run: ls -R android || true
+
+      - name: Ensure minSdkVersion >= 21 (Groovy/Kotlin)
+        shell: bash
         run: |
-          if grep -q "minSdkVersion" android/app/build.gradle; then
-            sed -i 's/minSdkVersion [0-9][0-9]*/minSdkVersion 21/' android/app/build.gradle || true
+          set -e
+          FILE_GROOVY="android/app/build.gradle"
+          FILE_KOTLIN="android/app/build.gradle.kts"
+          if [ -f "$FILE_GROOVY" ]; then
+            echo "Patching $FILE_GROOVY"
+            sed -i 's/minSdkVersion [0-9][0-9]*/minSdkVersion 21/' "$FILE_GROOVY" || true
+            if ! grep -q "minSdkVersion" "$FILE_GROOVY"; then
+              awk '/defaultConfig *\{/{print; print "        minSdkVersion 21"; next}1' "$FILE_GROOVY" > tmp && mv tmp "$FILE_GROOVY"
+            fi
+          elif [ -f "$FILE_KOTLIN" ]; then
+            echo "Patching $FILE_KOTLIN"
+            sed -i 's/minSdkVersion\s*=\s*[0-9][0-9]*/minSdkVersion = 21/' "$FILE_KOTLIN" || true
+            if ! grep -q "minSdkVersion" "$FILE_KOTLIN"; then
+              awk '/defaultConfig *\{/{print; print "        minSdkVersion = 21"; next}1' "$FILE_KOTLIN" > tmp && mv tmp "$FILE_KOTLIN"
+            fi
           else
-            awk '
-              /defaultConfig *{/ {print; print "        minSdkVersion 21"; next}1
-            ' android/app/build.gradle > tmp && mv tmp android/app/build.gradle
+            echo "No build.gradle(.kts) found; skipping minSdk patch."
           fi
 
       - name: Flutter pub get
