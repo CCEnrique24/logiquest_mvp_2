@@ -8,6 +8,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,10 +26,77 @@ jobs:
           channel: 'stable'
           cache: true
 
-      # Android SDK + herramientas necesarias
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      # ▶️ Instala Android SDK CLI tools manualmente y los agrega al PATH
+      - name: Install Android SDK CLI tools
+        env:
+          ANDROID_SDK_ROOT: ${{ runner.temp }}/android-sdk
+        run: |
+          set -e
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+
+          # descarga cmdline-tools (URL oficial de Google)
+          curl -L -o cmdline-tools.zip https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip
+
+          # descomprime en $ANDROID_SDK_ROOT/cmdline-tools/latest
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          rm -f cmdline-tools.zip
+
+          # agrega binarios al PATH del job
+          echo "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin" >> $GITHUB_PATH
+          echo "$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_PATH
+
+          # acepta licencias y instala paquetes necesarios
+          yes | sdkmanager --licenses
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      # Genera /android si no existe y apunta al SDK en local.properties
+      - name: Generate Android project if missing
+        run: |
+          flutter create . --platforms=android
+          echo "sdk.dir=${ANDROID_SDK_ROOT}" > android/local.properties
+
+      # Asegura versiones mínimas para compilar
+      - name: Ensure min/compile SDK versions
+        run: |
+          set -e
+          if [ -f android/app/build.gradle ]; then
+            sed -i 's/minSdkVersion [0-9]\+/minSdkVersion 21/' android/app/build.gradle || true
+            sed -i 's/compileSdkVersion [0-9]\+/compileSdkVersion 34/' android/app/build.gradle || true
+            sed -i 's/compileSdkVersion flutter\.compileSdkVersion/compileSdkVersion 34/' android/app/build.gradle || true
+          fi
+          if [ -f android/app/build.gradle.kts ]; then
+            sed -i 's/minSdkVersion\s*=\s*[0-9]\+/minSdkVersion = 21/' android/app/build.gradle.kts || true
+            sed -i 's/compileSdkVersion\s*=\s*[0-9]\+/compileSdkVersion = 34/' android/app/build.gradle.kts || true
+          fi
+          echo "org.gradle.jvmargs=-Xmx4096m -Dkotlin.daemon.jvm.options=-Xmx2048m" >> android/gradle.properties || true
+          echo "android.useAndroidX=true" >> android/gradle.properties || true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build debug APK (verbose)
+        run: |
+          set -o pipefail
+          flutter build apk --debug -v |& tee flutter_build_log.txt
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
         with:
-          accept-android-sdk-licenses: true
-          packages: |
-            c
+          name: app-debug
+          path: |
+            build/app/outputs/flutter-apk/app-debug.apk
+            build/app/outputs/apk/debug/app-debug.apk
+            build/app/outputs/apk/**/*.apk
+          if-no-files-found: warn
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            flutter_build_log.txt
+            android/app/build.gradle
+            android/app/build.gradle.kts
