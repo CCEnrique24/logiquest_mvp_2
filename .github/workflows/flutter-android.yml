@@ -19,15 +19,15 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # Flutter estable (ajustado y cacheado)
-      - name: Set up Flutter (stable)
+      # Flutter estable (pin fijo para evitar el error de 'stable')
+      - name: Set up Flutter (stable 3.22.2)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.2"   # puedes dejar esta estable
+          flutter-version: "3.22.2"
           channel: "stable"
           cache: true
 
-      # 👉 Instala Android SDK + build-tools + platform-tools (y acepta licencias)
+      # Android SDK + build-tools
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -39,23 +39,23 @@ jobs:
       - name: flutter --version
         run: flutter --version
 
-      # Crea /android si no existe (cuando el repo es puro Flutter sin plataforma)
+      # Crea la carpeta android si el repo es "puro Flutter"
       - name: Ensure Android folder exists
         run: |
           if [ ! -d "android" ]; then
             flutter create . --platforms=android
           fi
 
-      # (Opcional) Más memoria para Gradle/Kotlin
+      # Más memoria para Gradle/Kotlin
       - name: Gradle properties
         run: |
           echo "org.gradle.jvmargs=-Xmx4096m -Dkotlin.daemon.jvm.options=-Xmx2048m" >> android/gradle.properties || true
 
-      # Debug: ver qué hay en android/
+      # Ver estructura para depurar
       - name: Show Android tree (debug)
         run: ls -R android || true
 
-      # Asegurar minSdkVersion >= 21 (soporta Groovy y Kotlin DSL)
+      # Garantiza minSdkVersion >= 21 (Groovy/Kotlin)
       - name: Ensure minSdkVersion >= 21 (Groovy/Kotlin)
         shell: bash
         run: |
@@ -81,11 +81,28 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
+      # 🧪 Compila en debug con logs detallados y los guarda en archivo
       - name: Build debug APK (installable)
-        run: flutter build apk --debug -v
+        run: |
+          set -o pipefail
+          flutter build apk --debug -v |& tee flutter_build_log.txt
 
+      # 📦 Sube el APK si existe (no siempre existe si falló antes)
       - name: Upload APK artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: logiquest-debug-apk
           path: build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: warn
+
+      # 📑 Sube SIEMPRE los logs para diagnóstico
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-logs
+          path: |
+            flutter_build_log.txt
+            android/app/build.gradle
+            android/app/build.gradle.kts
