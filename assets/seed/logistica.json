@@ -1,0 +1,45 @@
+{
+  "module": {
+    "id": "logistica_v1",
+    "title": "Fábrica de Logística",
+    "factoryTheme": "warehouse_minimal",
+    "unlockRules": {"resource": "certificacion", "qty": 1, "minScore": 80}
+  },
+  "quizzes": [
+    {
+      "id": "quiz_mrp_basico",
+      "moduleId": "logistica_v1",
+      "title": "MRP Básico",
+      "items": [
+        {"q": "¿Qué dato NO es entrada del MRP?", "opts": ["BOM","Inventario disponible","Lead time","Costo hundido"], "a": 3},
+        {"q": "La lista de materiales (BOM) define…", "opts": ["Rutas de transporte","Componentes y cantidades","Costos indirectos","Pronóstico de ventas"], "a": 1},
+        {"q": "EOQ minimiza…", "opts": ["Costos de pedido + mantenimiento","Tiempo de ciclo","Defectos","Stockout seguro"], "a": 0},
+        {"q": "Si el lead time aumenta, el punto de reorden…", "opts": ["Disminuye","Aumenta","No cambia","Se vuelve cero"], "a": 1},
+        {"q": "KPI de cumplimiento de entregas (OTD) mide…", "opts": ["Costo total","Entregas a tiempo","Nivel de inventario","Rotación de personal"], "a": 1},
+        {"q": "Un pronóstico con alto error MAPE implica…", "opts": ["Más seguridad en el plan","Mayor variabilidad y riesgo de stockouts","Menor nivel de servicio","Mayor rotación de inventario"], "a": 1},
+        {"q": "El lead time de proveedor afecta principalmente…", "opts": ["El punto de reorden","El costo de mantenimiento","El costo de pedido","El BOM"], "a": 0}
+      ]
+    },
+    {
+      "id": "quiz_ruteo_basico",
+      "moduleId": "logistica_v1",
+      "title": "Transporte y Ruteo",
+      "items": [
+        {"q": "El VRP busca optimizar…", "opts": ["Asignación de personal","Rutas de vehículos","Diseño de planta","Calidad total"], "a": 1},
+        {"q": "Una restricción típica en ruteo es…", "opts": ["Capacidad de vehículos","Clima","Color del camión","Tipo de cliente"], "a": 0},
+        {"q": "El 'backhaul' se refiere a…", "opts": ["Ruta de ida","Carga de retorno","Paradas intermedias","Descarga prioritaria"], "a": 1},
+        {"q": "Un mayor 'drop density' generalmente…", "opts": ["Aumenta km recorridos","Reduce km por entrega","No cambia el costo","Elimina tiempos de espera"], "a": 1},
+        {"q": "Las 'ventanas de tiempo' en ruteo significan…", "opts": ["Horas de servicio por cliente","Tiempo de carga","Tiempo de descanso","Tiempo de mantenimiento"], "a": 0}
+      ]
+    }
+  ],
+  "dragdrop": {
+    "id": "flujo_proceso",
+    "steps": ["Recepción","Inspección","Almacenaje","Picking","Embarque"]
+  },
+  "minisim": {
+    "id": "balance_inventarios",
+    "vars": ["demanda","lead_time","costo_mant","costo_pedido"],
+    "targetKPI": 85
+  }
+}
