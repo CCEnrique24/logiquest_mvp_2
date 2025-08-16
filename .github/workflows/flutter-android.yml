@@ -1,14 +1,13 @@
 name: Build Android APK
 
 on:
+  workflow_dispatch:
   push:
     branches: [ main ]
-  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -17,95 +16,19 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: "17"
+          java-version: '17'
 
-      # Flutter estable (pin fijo)
       - name: Set up Flutter (stable 3.22.2)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.2"
-          channel: "stable"
+          flutter-version: '3.22.2'
+          channel: 'stable'
           cache: true
 
-      # Android SDK con inputs válidos
+      # Android SDK + herramientas necesarias
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
           accept-android-sdk-licenses: true
           packages: |
-            cmdline-tools;latest
-            platform-tools
-            platforms;android-34
-            build-tools;34.0.0
-
-      - name: flutter --version & doctor
-        run: |
-          flutter --version
-          flutter doctor -v | tee setup_log.txt
-
-      # Crea /android si no existe y enlaza SDK local
-      - name: Ensure Android folder + local.properties
-        run: |
-          if [ ! -d "android" ]; then
-            flutter create . --platforms=android
-          fi
-          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
-
-      # Memoria extra para Gradle/Kotlin
-      - name: Gradle properties
-        run: |
-          echo "org.gradle.jvmargs=-Xmx4096m -Dkotlin.daemon.jvm.options=-Xmx2048m" >> android/gradle.properties || true
-          echo "android.useAndroidX=true" >> android/gradle.properties || true
-
-      # Ver estructura
-      - name: Show Android tree (debug)
-        run: ls -R android || true
-
-      # Asegura minSdkVersion>=21 y compileSdkVersion=34 (Groovy/Kotlin)
-      - name: Ensure SDK versions (Groovy/Kotlin)
-        shell: bash
-        run: |
-          set -e
-          FILE_G="android/app/build.gradle"
-          FILE_K="android/app/build.gradle.kts"
-
-          if [ -f "$FILE_G" ]; then
-            # minSdkVersion
-            if grep -q "minSdkVersion" "$FILE_G"; then
-              sed -i 's/minSdkVersion [0-9][0-9]*/minSdkVersion 21/' "$FILE_G" || true
-            else
-              awk '/defaultConfig *\{/{print; print "        minSdkVersion 21"; next}1' "$FILE_G" > tmp && mv tmp "$FILE_G"
-            fi
-            # compileSdkVersion (si usa literal o la var de Flutter)
-            if grep -q "compileSdkVersion" "$FILE_G"; then
-              sed -i 's/compileSdkVersion [0-9][0-9]*/compileSdkVersion 34/' "$FILE_G" || true
-              sed -i 's/compileSdkVersion flutter\.compileSdkVersion/compileSdkVersion 34/' "$FILE_G" || true
-            fi
-          elif [ -f "$FILE_K" ]; then
-            # minSdkVersion
-            if grep -q "minSdkVersion" "$FILE_K"; then
-              sed -i 's/minSdkVersion\s*=\s*[0-9][0-9]*/minSdkVersion = 21/' "$FILE_K" || true
-            else
-              awk '/defaultConfig *\{/{print; print "        minSdkVersion = 21"; next}1' "$FILE_K" > tmp && mv tmp "$FILE_K"
-            fi
-            # compileSdkVersion
-            if grep -q "compileSdkVersion" "$FILE_K"; then
-              sed -i 's/compileSdkVersion\s*=\s*[0-9][0-9]*/compileSdkVersion = 34/' "$FILE_K" || true
-            fi
-          else
-            echo "No build.gradle(.kts) found; skipping patch."
-          fi
-
-      - name: Flutter pub get
-        run: flutter pub get
-
-      # Build con logs guardados SIEMPRE
-      - name: Build debug APK (installable)
-        run: |
-          set -o pipefail
-          touch flutter_build_log.txt
-          flutter build apk --debug -v |& tee -a flutter_build_log.txt
-
-      # Subir APK (busca en varias rutas conocidas)
-      - name: Upload APK artifact
-        if: alwa
+            c
