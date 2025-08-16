@@ -19,42 +19,43 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # Fija una versión estable conocida
-      - name: Set up Flutter (stable 3.22.2)
+      # Flutter estable (ajustado y cacheado)
+      - name: Set up Flutter (stable)
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: "3.22.2"
+          flutter-version: "3.22.2"   # puedes dejar esta estable
           channel: "stable"
           cache: true
+
+      # 👉 Instala Android SDK + build-tools + platform-tools (y acepta licencias)
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          api-level: 34
+          build-tools: 34.0.0
+          cmake: false
+          ndk: false
 
       - name: flutter --version
         run: flutter --version
 
-      # Crea el proyecto Android si no existe
+      # Crea /android si no existe (cuando el repo es puro Flutter sin plataforma)
       - name: Ensure Android folder exists
         run: |
           if [ ! -d "android" ]; then
             flutter create . --platforms=android
           fi
 
-      # Aumenta memoria de Gradle y Kotlin
+      # (Opcional) Más memoria para Gradle/Kotlin
       - name: Gradle properties
         run: |
           echo "org.gradle.jvmargs=-Xmx4096m -Dkotlin.daemon.jvm.options=-Xmx2048m" >> android/gradle.properties || true
 
-      # Instala SDKs y acepta licencias
-      - name: Install Android SDK components
-        env:
-          ANDROID_SDK_ROOT: ${{ env.ANDROID_SDK_ROOT }}
-        run: |
-          yes | sdkmanager --licenses || true
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
-
-      # Muestra el árbol de android para depurar
+      # Debug: ver qué hay en android/
       - name: Show Android tree (debug)
         run: ls -R android || true
 
-      # Asegura minSdkVersion >= 21 (Groovy/Kotlin)
+      # Asegurar minSdkVersion >= 21 (soporta Groovy y Kotlin DSL)
       - name: Ensure minSdkVersion >= 21 (Groovy/Kotlin)
         shell: bash
         run: |
@@ -80,7 +81,6 @@ jobs:
       - name: Flutter pub get
         run: flutter pub get
 
-      # Compila en modo debug con logs detallados
       - name: Build debug APK (installable)
         run: flutter build apk --debug -v
 
