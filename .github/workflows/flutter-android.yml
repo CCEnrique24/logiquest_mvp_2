@@ -19,7 +19,7 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      # Flutter estable (pin fijo para evitar problemas con 'stable')
+      # Flutter estable (pin fijo)
       - name: Set up Flutter (stable 3.22.2)
         uses: subosito/flutter-action@v2
         with:
@@ -27,7 +27,7 @@ jobs:
           channel: "stable"
           cache: true
 
-      # ✅ Instala Android SDK con inputs válidos
+      # Android SDK con inputs válidos
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
         with:
@@ -38,76 +38,74 @@ jobs:
             platforms;android-34
             build-tools;34.0.0
 
-      - name: flutter --version
-        run: flutter --version
+      - name: flutter --version & doctor
+        run: |
+          flutter --version
+          flutter doctor -v | tee setup_log.txt
 
-      # Crea /android si no existe
-      - name: Ensure Android folder exists
+      # Crea /android si no existe y enlaza SDK local
+      - name: Ensure Android folder + local.properties
         run: |
           if [ ! -d "android" ]; then
             flutter create . --platforms=android
           fi
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > android/local.properties
 
-      # (Opcional) Más memoria para Gradle/Kotlin
+      # Memoria extra para Gradle/Kotlin
       - name: Gradle properties
         run: |
           echo "org.gradle.jvmargs=-Xmx4096m -Dkotlin.daemon.jvm.options=-Xmx2048m" >> android/gradle.properties || true
+          echo "android.useAndroidX=true" >> android/gradle.properties || true
 
-      # Depuración: ver estructura de android/
+      # Ver estructura
       - name: Show Android tree (debug)
         run: ls -R android || true
 
-      # Asegurar minSdkVersion >= 21 (Groovy/Kotlin)
-      - name: Ensure minSdkVersion >= 21 (Groovy/Kotlin)
+      # Asegura minSdkVersion>=21 y compileSdkVersion=34 (Groovy/Kotlin)
+      - name: Ensure SDK versions (Groovy/Kotlin)
         shell: bash
         run: |
           set -e
-          FILE_GROOVY="android/app/build.gradle"
-          FILE_KOTLIN="android/app/build.gradle.kts"
-          if [ -f "$FILE_GROOVY" ]; then
-            echo "Patching $FILE_GROOVY"
-            sed -i 's/minSdkVersion [0-9][0-9]*/minSdkVersion 21/' "$FILE_GROOVY" || true
-            if ! grep -q "minSdkVersion" "$FILE_GROOVY"; then
-              awk '/defaultConfig *\{/{print; print "        minSdkVersion 21"; next}1' "$FILE_GROOVY" > tmp && mv tmp "$FILE_GROOVY"
+          FILE_G="android/app/build.gradle"
+          FILE_K="android/app/build.gradle.kts"
+
+          if [ -f "$FILE_G" ]; then
+            # minSdkVersion
+            if grep -q "minSdkVersion" "$FILE_G"; then
+              sed -i 's/minSdkVersion [0-9][0-9]*/minSdkVersion 21/' "$FILE_G" || true
+            else
+              awk '/defaultConfig *\{/{print; print "        minSdkVersion 21"; next}1' "$FILE_G" > tmp && mv tmp "$FILE_G"
             fi
-          elif [ -f "$FILE_KOTLIN" ]; then
-            echo "Patching $FILE_KOTLIN"
-            sed -i 's/minSdkVersion\s*=\s*[0-9][0-9]*/minSdkVersion = 21/' "$FILE_KOTLIN" || true
-            if ! grep -q "minSdkVersion" "$FILE_KOTLIN"; then
-              awk '/defaultConfig *\{/{print; print "        minSdkVersion = 21"; next}1' "$FILE_KOTLIN" > tmp && mv tmp "$FILE_KOTLIN"
+            # compileSdkVersion (si usa literal o la var de Flutter)
+            if grep -q "compileSdkVersion" "$FILE_G"; then
+              sed -i 's/compileSdkVersion [0-9][0-9]*/compileSdkVersion 34/' "$FILE_G" || true
+              sed -i 's/compileSdkVersion flutter\.compileSdkVersion/compileSdkVersion 34/' "$FILE_G" || true
+            fi
+          elif [ -f "$FILE_K" ]; then
+            # minSdkVersion
+            if grep -q "minSdkVersion" "$FILE_K"; then
+              sed -i 's/minSdkVersion\s*=\s*[0-9][0-9]*/minSdkVersion = 21/' "$FILE_K" || true
+            else
+              awk '/defaultConfig *\{/{print; print "        minSdkVersion = 21"; next}1' "$FILE_K" > tmp && mv tmp "$FILE_K"
+            fi
+            # compileSdkVersion
+            if grep -q "compileSdkVersion" "$FILE_K"; then
+              sed -i 's/compileSdkVersion\s*=\s*[0-9][0-9]*/compileSdkVersion = 34/' "$FILE_K" || true
             fi
           else
-            echo "No build.gradle(.kts) found; skipping minSdk patch."
+            echo "No build.gradle(.kts) found; skipping patch."
           fi
 
       - name: Flutter pub get
         run: flutter pub get
 
-      # Compila en debug con logs guardados en archivo
+      # Build con logs guardados SIEMPRE
       - name: Build debug APK (installable)
         run: |
           set -o pipefail
-          flutter build apk --debug -v |& tee flutter_build_log.txt
+          touch flutter_build_log.txt
+          flutter build apk --debug -v |& tee -a flutter_build_log.txt
 
-      # Sube APK (con rutas alternativas por si cambia la ubicación)
+      # Subir APK (busca en varias rutas conocidas)
       - name: Upload APK artifact
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: logiquest-debug-apk
-          path: |
-            build/app/outputs/flutter-apk/app-debug.apk
-            build/app/outputs/apk/debug/app-debug.apk
-            build/app/outputs/apk/**/*.apk
-          if-no-files-found: warn
-
-      # Sube SIEMPRE los logs para diagnóstico
-      - name: Upload build logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: build-logs
-          path: |
-            flutter_build_log.txt
-            android/app/build.gradle
-            android/app/build.gradle.kts
+        if: alwa
